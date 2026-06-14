@@ -1,591 +1,530 @@
-
-import json
 import random
-from datetime import date
-from pathlib import Path
+import math
+import sys
 
-import streamlit as st
-import streamlit.components.v1 as components
+import pygame
 
-st.set_page_config(
-    page_title="Spoken English Pro Quest",
-    page_icon="🎮",
-    layout="centered",
-    initial_sidebar_state="collapsed",
-)
+pygame.init()
+pygame.mixer.init()
 
-LEADERBOARD_FILE = Path("leaderboard.json")
+WIDTH, HEIGHT = 470, 720
+SCREEN = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Flappy Sky Pro - Python Version")
+CLOCK = pygame.time.Clock()
+FPS = 60
 
-QUESTIONS = [
-    {
-        "mode": "General",
-        "type": "choose",
-        "level": "Daily Speaking",
-        "mission": "Choose the natural sentence.",
-        "q": "Which sentence sounds natural?",
-        "options": ["I am agree with you.", "I agree with you.", "I am agreed you.", "I agree to you."],
-        "answer": "I agree with you.",
-        "tip": "Say: I agree with you.",
-    },
-    {
-        "mode": "General",
-        "type": "choose",
-        "level": "School Talk",
-        "mission": "Fix the common grammar mistake.",
-        "q": "Choose the correct sentence:",
-        "options": ["She go to school.", "She goes to school.", "She going to school.", "She gone school."],
-        "answer": "She goes to school.",
-        "tip": "Use goes with he/she.",
-    },
-    {
-        "mode": "General",
-        "type": "order",
-        "level": "Sentence Builder",
-        "mission": "Arrange the words correctly.",
-        "q": "Make a polite request:",
-        "words": ["Can", "you", "help", "me", "please?"],
-        "answer": "Can you help me please?",
-        "tip": "This is useful in real conversation.",
-    },
-    {
-        "mode": "General",
-        "type": "choose",
-        "level": "Conversation Reply",
-        "mission": "Choose a natural reply.",
-        "q": "Someone says: Thank you. What should you reply?",
-        "options": ["You welcome.", "You are welcome.", "Welcome only.", "No thank."],
-        "answer": "You are welcome.",
-        "tip": "You can also say: No problem.",
-    },
-    {
-        "mode": "General",
-        "type": "order",
-        "level": "Speaking Confidence",
-        "mission": "Build a confident sentence.",
-        "q": "Arrange the words:",
-        "words": ["I", "want", "to", "improve", "my", "English"],
-        "answer": "I want to improve my English",
-        "tip": "Use want to + verb.",
-    },
-    {
-        "mode": "IELTS",
-        "type": "choose",
-        "level": "IELTS Speaking Part 1",
-        "mission": "Choose a better IELTS-style answer.",
-        "q": "Question: Do you like reading books?",
-        "options": [
-            "Yes.",
-            "Yes, I enjoy reading because it helps me learn new ideas.",
-            "Reading good.",
-            "I like book very much."
-        ],
-        "answer": "Yes, I enjoy reading because it helps me learn new ideas.",
-        "tip": "IELTS answers should be clear and slightly extended.",
-    },
-    {
-        "mode": "IELTS",
-        "type": "choose",
-        "level": "IELTS Fluency",
-        "mission": "Choose the more fluent sentence.",
-        "q": "Which answer is more fluent?",
-        "options": [
-            "In my opinion, technology makes learning easier and faster.",
-            "Technology learning easy fast.",
-            "I am think technology good.",
-            "Technology is very very very good only."
-        ],
-        "answer": "In my opinion, technology makes learning easier and faster.",
-        "tip": "Use linking phrases like: In my opinion.",
-    },
-    {
-        "mode": "IELTS",
-        "type": "order",
-        "level": "IELTS Sentence Builder",
-        "mission": "Build an IELTS-style sentence.",
-        "q": "Arrange the words:",
-        "words": ["I", "believe", "practice", "improves", "fluency"],
-        "answer": "I believe practice improves fluency",
-        "tip": "This is a clear opinion sentence.",
-    },
-    {
-        "mode": "IELTS",
-        "type": "choose",
-        "level": "IELTS Grammar",
-        "mission": "Avoid grammar mistakes.",
-        "q": "Choose the correct sentence:",
-        "options": [
-            "People is using internet.",
-            "People are using the internet.",
-            "People using internet.",
-            "People are use internet."
-        ],
-        "answer": "People are using the internet.",
-        "tip": "People is plural, so use are.",
-    },
-    {
-        "mode": "IELTS",
-        "type": "choose",
-        "level": "IELTS Vocabulary",
-        "mission": "Choose a better vocabulary sentence.",
-        "q": "Which sentence has better vocabulary?",
-        "options": [
-            "The city is good.",
-            "The city is vibrant and full of opportunities.",
-            "The city very nice.",
-            "The city has many many things."
-        ],
-        "answer": "The city is vibrant and full of opportunities.",
-        "tip": "Use stronger vocabulary, but keep it natural.",
-    },
-]
+WHITE = (255, 255, 255)
+BLACK = (10, 10, 10)
+YELLOW = (255, 202, 40)
+ORANGE = (255, 143, 0)
+GREEN = (55, 200, 70)
+DARK_GREEN = (10, 90, 30)
+SKY_TOP = (99, 204, 255)
+SKY_BOTTOM = (139, 221, 121)
+DIRT = (139, 90, 43)
 
-BADGES = [
-    ("Starter Speaker", 100),
-    ("Grammar Fighter", 300),
-    ("Fluency Builder", 600),
-    ("IELTS Explorer", 900),
-    ("Confidence Champion", 1300),
-    ("Spoken English Pro", 1800),
-]
+FONT_BIG = pygame.font.SysFont("arial", 42, bold=True)
+FONT_MED = pygame.font.SysFont("arial", 24, bold=True)
+FONT_SMALL = pygame.font.SysFont("arial", 16, bold=True)
 
-DAILY_CHALLENGES = [
-    "Introduce yourself in 3 English sentences.",
-    "Speak for 30 seconds about your school or work.",
-    "Use this sentence today: I agree with you because...",
-    "Describe your favorite food in English.",
-    "Answer this IELTS question: Do you like your hometown?",
-    "Practice 5 polite sentences: Can you..., Could you..., Please...",
-    "Record yourself speaking for 1 minute in English.",
-]
+state = "menu"
+frame = 0
+score = 0
+coins = 0
+best = 0
+level = 1
+camera_shake = 0
+slow_motion = 0
 
-def load_leaderboard():
-    if LEADERBOARD_FILE.exists():
-        try:
-            return json.loads(LEADERBOARD_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            return []
-    return []
+bird = {
+    "x": 105,
+    "y": 330,
+    "r": 18,
+    "vy": 0,
+    "gravity": 0.38,
+    "jump": -7.9,
+    "wing": 0,
+    "shield": 0,
+}
 
-def save_leaderboard(data):
-    LEADERBOARD_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+pipes = []
+items = []
+particles = []
 
-def play_sound(kind="correct"):
-    tones = {
-        "correct": [523, 659, 784],
-        "wrong": [220, 160],
-        "badge": [392, 523, 659, 1046],
-        "level": [330, 440, 660],
+clouds = [
+    {
+        "x": random.randint(0, WIDTH),
+        "y": random.randint(35, 260),
+        "s": random.uniform(0.5, 1.7),
+        "v": random.uniform(0.18, 0.42),
     }
-    freqs = tones.get(kind, [440])
-    js_freqs = json.dumps(freqs)
-    components.html(
-        f"""
-        <script>
-        const freqs = {js_freqs};
-        const audio = new (window.AudioContext || window.webkitAudioContext)();
-        freqs.forEach((freq, i) => {{
-            const osc = audio.createOscillator();
-            const gain = audio.createGain();
-            osc.type = "sine";
-            osc.frequency.value = freq;
-            gain.gain.value = 0.045;
-            osc.connect(gain);
-            gain.connect(audio.destination);
-            osc.start(audio.currentTime + i * 0.10);
-            gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + i * 0.10 + 0.18);
-            osc.stop(audio.currentTime + i * 0.10 + 0.20);
-        }});
-        </script>
-        """,
-        height=0,
+    for _ in range(10)
+]
+
+mountains = [
+    {
+        "x": i * 95 - 30,
+        "h": random.randint(120, 230),
+        "w": random.randint(140, 220),
+    }
+    for i in range(9)
+]
+
+grass = [
+    {
+        "x": i * 8,
+        "h": random.randint(12, 30),
+    }
+    for i in range(80)
+]
+
+
+def draw_text(text, font, color, x, y, center=True):
+    img = font.render(str(text), True, color)
+    rect = img.get_rect()
+    if center:
+        rect.center = (x, y)
+    else:
+        rect.topleft = (x, y)
+    SCREEN.blit(img, rect)
+
+
+def draw_rounded_rect(surface, color, rect, radius=12):
+    pygame.draw.rect(surface, color, rect, border_radius=radius)
+
+
+def make_sound(freq=440, duration=0.08, volume=0.20):
+    sample_rate = 44100
+    n_samples = int(sample_rate * duration)
+    buf = bytearray()
+    for i in range(n_samples):
+        t = i / sample_rate
+        wave = math.sin(2 * math.pi * freq * t)
+        val = int(32767 * volume * wave)
+        buf += val.to_bytes(2, byteorder="little", signed=True)
+    try:
+        return pygame.mixer.Sound(buffer=bytes(buf))
+    except Exception:
+        return None
+
+
+SND_FLAP = make_sound(520, 0.07, 0.18)
+SND_COIN = make_sound(880, 0.09, 0.20)
+SND_HIT = make_sound(90, 0.18, 0.22)
+SND_POWER = make_sound(660, 0.12, 0.18)
+
+
+def play(sound):
+    if sound:
+        sound.play()
+
+
+def reset_game():
+    global state, frame, score, coins, level, pipes, items, particles, camera_shake, slow_motion
+    state = "play"
+    frame = 0
+    score = 0
+    coins = 0
+    level = 1
+    pipes = []
+    items = []
+    particles = []
+    camera_shake = 0
+    slow_motion = 0
+    bird["y"] = 330
+    bird["vy"] = 0
+    bird["wing"] = 0
+    bird["shield"] = 0
+    add_pipe()
+
+
+def flap():
+    global state
+    if state in ["menu", "over"]:
+        reset_game()
+        play(SND_POWER)
+        return
+    if state == "pause":
+        return
+    bird["vy"] = bird["jump"]
+    bird["wing"] = 16
+    play(SND_FLAP)
+    burst(bird["x"] - 12, bird["y"] + 11, 14, "feather")
+
+
+def burst(x, y, n, kind="spark"):
+    for _ in range(n):
+        angle = random.random() * math.pi * 2
+        speed = random.uniform(1, 4.8)
+        particles.append(
+            {
+                "x": x,
+                "y": y,
+                "vx": math.cos(angle) * speed - (1.8 if kind == "feather" else 0),
+                "vy": math.sin(angle) * speed,
+                "life": random.randint(25, 50),
+                "max": 50,
+                "size": random.uniform(2, 5),
+                "kind": kind,
+            }
+        )
+
+
+def add_pipe():
+    gap = max(138, 178 - score * 0.55)
+    margin = 95
+    top = margin + random.random() * (HEIGHT - 250 - gap)
+    moving = score > 8 and random.random() < 0.35
+    pipes.append(
+        {
+            "x": WIDTH + 60,
+            "w": 76,
+            "top": top,
+            "bottom": top + gap,
+            "base_top": top,
+            "gap": gap,
+            "speed": 2.75 + min(2.25, score * 0.035),
+            "passed": False,
+            "moving": moving,
+            "phase": random.random() * math.pi * 2,
+        }
     )
 
-def init():
-    defaults = {
-        "started": False,
-        "player": "Student",
-        "mode": "General",
-        "index": 0,
-        "score": 0,
-        "xp": 0,
-        "lives": 3,
-        "streak": 0,
-        "selected_words": [],
-        "shuffled_words": [],
-        "message": "",
-        "message_type": "",
-        "earned_badges": [],
-        "answered": False,
-        "sound": True,
-    }
-    for k, v in defaults.items():
-        if k not in st.session_state:
-            st.session_state[k] = v
+    if random.random() < 0.78:
+        items.append(
+            {
+                "x": WIDTH + 105,
+                "y": top + gap / 2,
+                "type": "shield" if random.random() < 0.18 else "coin",
+                "r": 12,
+                "collected": False,
+                "spin": 0,
+            }
+        )
 
-def current_level_number():
-    return (st.session_state.xp // 250) + 1
 
-def progress_to_next_level():
-    return (st.session_state.xp % 250) / 250
+def draw_sky():
+    for y in range(HEIGHT):
+        t = y / HEIGHT
+        r = int(SKY_TOP[0] * (1 - t) + SKY_BOTTOM[0] * t)
+        g = int(SKY_TOP[1] * (1 - t) + SKY_BOTTOM[1] * t)
+        b = int(SKY_TOP[2] * (1 - t) + SKY_BOTTOM[2] * t)
+        pygame.draw.line(SCREEN, (r, g, b), (0, y), (WIDTH, y))
 
-def available_questions():
-    return [q for q in QUESTIONS if q["mode"] == st.session_state.mode]
+    sun_x = 70 + ((math.sin(frame * 0.002) + 1) / 2) * 330
+    sun_y = 95 + math.sin(frame * 0.003) * 22
+    pygame.draw.circle(SCREEN, (255, 245, 160), (int(sun_x), int(sun_y)), 34)
 
-def restart():
-    player = st.session_state.player
-    mode = st.session_state.mode
-    sound = st.session_state.sound
-    st.session_state.clear()
-    init()
-    st.session_state.player = player
-    st.session_state.mode = mode
-    st.session_state.sound = sound
-    st.session_state.started = True
+    for c in clouds:
+        c["x"] -= c["v"] * (1 + level * 0.05)
+        if c["x"] < -160:
+            c["x"] = WIDTH + 120
+            c["y"] = random.randint(35, 260)
+            c["s"] = random.uniform(0.5, 1.7)
 
-def check_badges():
-    newly = []
-    for badge, needed in BADGES:
-        if st.session_state.xp >= needed and badge not in st.session_state.earned_badges:
-            st.session_state.earned_badges.append(badge)
-            newly.append(badge)
-    return newly
+        x, y, s = c["x"], c["y"], c["s"]
+        color = (245, 250, 255)
+        pygame.draw.circle(SCREEN, color, (int(x), int(y + 20 * s)), int(24 * s))
+        pygame.draw.circle(SCREEN, color, (int(x + 30 * s), int(y + 5 * s)), int(34 * s))
+        pygame.draw.circle(SCREEN, color, (int(x + 65 * s), int(y + 20 * s)), int(27 * s))
+        pygame.draw.circle(SCREEN, color, (int(x + 38 * s), int(y + 28 * s)), int(32 * s))
 
-def finish_game():
-    board = load_leaderboard()
-    board.append({
-        "name": st.session_state.player,
-        "mode": st.session_state.mode,
-        "score": st.session_state.score,
-        "xp": st.session_state.xp,
-        "badges": len(st.session_state.earned_badges),
-        "date": str(date.today()),
-    })
-    board = sorted(board, key=lambda x: x["score"], reverse=True)[:10]
-    save_leaderboard(board)
 
-st.markdown("""
-<style>
-.stApp {
-    background:
-        radial-gradient(circle at top, rgba(44,201,255,.28), transparent 34%),
-        linear-gradient(180deg,#07172d,#102f55 55%,#123d2b);
-    color: white;
-}
-.block-container {padding-top: 1.2rem; max-width: 850px;}
-.hero {
-    background: linear-gradient(135deg, rgba(255,213,79,.18), rgba(64,196,255,.16));
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 28px;
-    padding: 24px;
-    text-align: center;
-    box-shadow: 0 22px 60px rgba(0,0,0,.35);
-}
-.title {
-    font-size: 44px;
-    font-weight: 950;
-    color: #ffd54f;
-    text-shadow: 0 4px 20px rgba(0,0,0,.55);
-}
-.sub {color:#d8fbff; font-size:16px;}
-.card {
-    background: rgba(3,18,35,.78);
-    border: 1px solid rgba(255,255,255,.18);
-    border-radius: 24px;
-    padding: 22px;
-    box-shadow: 0 18px 45px rgba(0,0,0,.38);
-    margin-top: 16px;
-}
-.stats {
-    display:grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap:10px;
-    margin-top:15px;
-}
-.stat {
-    background: rgba(0,0,0,.38);
-    padding: 13px;
-    border-radius: 17px;
-    text-align:center;
-    font-weight: 900;
-}
-.level {
-    color:#ffd54f;
-    font-weight:950;
-    text-transform:uppercase;
-    letter-spacing:.7px;
-}
-.question {font-size:25px; font-weight:950; margin:10px 0;}
-.tip {
-    background:rgba(255,255,255,.10);
-    border-left:5px solid #40c4ff;
-    padding:12px;
-    border-radius:14px;
-    color:#d8fbff;
-    margin:12px 0;
-}
-.correct {
-    background:rgba(67,160,71,.25);
-    border:1px solid #69f0ae;
-    padding:12px;
-    border-radius:14px;
-    color:#c8ffd6;
-    font-weight:900;
-}
-.wrong {
-    background:rgba(229,57,53,.25);
-    border:1px solid #ff8a80;
-    padding:12px;
-    border-radius:14px;
-    color:#ffd1d1;
-    font-weight:900;
-}
-.badge {
-    display:inline-block;
-    background:linear-gradient(180deg,#ffd54f,#ff9800);
-    color:#2b1600;
-    padding:8px 12px;
-    border-radius:20px;
-    font-weight:950;
-    margin:4px;
-}
-.mission {
-    background:linear-gradient(135deg, rgba(124,77,255,.28), rgba(0,229,255,.18));
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:18px;
-    padding:14px;
-    margin:10px 0;
-}
-div.stButton > button {
-    width:100%;
-    border-radius:16px;
-    padding:13px;
-    font-weight:900;
-    color:white;
-    background:linear-gradient(180deg,#1976d2,#0d47a1);
-    border:none;
-    box-shadow:0 7px 0 #062b66,0 12px 25px rgba(0,0,0,.25);
-}
-div.stButton > button:active {
-    transform:translateY(4px);
-    box-shadow:0 3px 0 #062b66;
-}
-@media(max-width: 650px){
-    .stats {grid-template-columns: repeat(2, 1fr);}
-    .title {font-size:34px;}
-}
-</style>
-""", unsafe_allow_html=True)
+def draw_land():
+    for i, m in enumerate(mountains):
+        m["x"] -= 0.45 + level * 0.025
+        if m["x"] < -m["w"]:
+            m["x"] = WIDTH + random.randint(20, 100)
 
-init()
+        color = (38, 91, 71) if i % 2 else (29, 74, 82)
+        points = [
+            (m["x"], HEIGHT - 90),
+            (m["x"] + m["w"] * 0.5, HEIGHT - 90 - m["h"]),
+            (m["x"] + m["w"], HEIGHT - 90),
+        ]
+        pygame.draw.polygon(SCREEN, color, points)
 
-st.markdown("""
-<div class="hero">
-    <div class="title">🎮 Spoken English Pro Quest</div>
-    <div class="sub">XP system • Levels • Badges • Daily Challenges • IELTS Mode • Leaderboard • Sounds • Animations</div>
-</div>
-""", unsafe_allow_html=True)
+    pygame.draw.rect(SCREEN, (70, 181, 77), (0, HEIGHT - 90, WIDTH, 90))
 
-with st.sidebar:
-    st.header("⚙️ Game Settings")
-    st.session_state.player = st.text_input("Player name", st.session_state.player)
-    st.session_state.mode = st.radio("Mode", ["General", "IELTS"], index=0 if st.session_state.mode == "General" else 1)
-    st.session_state.sound = st.toggle("Sound effects", value=st.session_state.sound)
-    st.info("For Streamlit Cloud, keep app.py and requirements.txt in your GitHub repo.")
+    for g in grass:
+        g["x"] -= 2.8 + level * 0.18
+        if g["x"] < -10:
+            g["x"] = WIDTH + random.randint(0, 20)
 
-daily = DAILY_CHALLENGES[date.today().toordinal() % len(DAILY_CHALLENGES)]
+        x = int(g["x"])
+        pygame.draw.polygon(
+            SCREEN,
+            (46, 125, 50),
+            [(x, HEIGHT - 90), (x + 3, HEIGHT - 90 - g["h"]), (x + 6, HEIGHT - 90)],
+        )
 
-if not st.session_state.started:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🚀 Start Your Mission")
-    st.markdown(f'<div class="mission">🔥 <b>Today’s Daily Challenge:</b><br>{daily}</div>', unsafe_allow_html=True)
-    st.write("Choose correct answers, build sentences, earn XP, unlock badges, and climb the leaderboard.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🎯 Start General / IELTS Game"):
-            restart()
-            st.rerun()
-    with c2:
-        if st.button("🏆 View Leaderboard"):
-            st.session_state.started = "leaderboard"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
+    pygame.draw.rect(SCREEN, DIRT, (0, HEIGHT - 52, WIDTH, 52))
 
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("### 🏅 Badges You Can Unlock")
-    st.markdown("".join([f'<span class="badge">{b} · {xp} XP</span>' for b, xp in BADGES]), unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
 
-if st.session_state.started == "leaderboard":
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("## 🏆 Leaderboard")
-    board = load_leaderboard()
-    if board:
-        st.dataframe(board, use_container_width=True, hide_index=True)
-    else:
-        st.info("No scores yet. Play first!")
-    if st.button("⬅️ Back"):
-        st.session_state.started = False
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
+def draw_pipes():
+    for p in pipes:
+        x = int(p["x"])
+        w = p["w"]
+        top = int(p["top"])
+        bottom = int(p["bottom"])
 
-level_no = current_level_number()
-progress = progress_to_next_level()
+        draw_rounded_rect(SCREEN, GREEN, (x, -25, w, top + 25), 18)
+        draw_rounded_rect(SCREEN, GREEN, (x, bottom, w, HEIGHT - bottom - 52), 18)
 
-st.markdown(
-    f"""
-    <div class="stats">
-        <div class="stat">⭐ Score<br>{st.session_state.score}</div>
-        <div class="stat">⚡ XP<br>{st.session_state.xp}</div>
-        <div class="stat">🎚️ Level<br>{level_no}</div>
-        <div class="stat">🔥 Streak<br>{st.session_state.streak}</div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-st.progress(progress, text=f"Progress to Level {level_no + 1}")
-st.markdown(f"**Lives:** {'❤️' * st.session_state.lives}{'🖤' * (3 - st.session_state.lives)}")
+        draw_rounded_rect(SCREEN, DARK_GREEN, (x - 10, top - 25, w + 20, 31), 10)
+        draw_rounded_rect(SCREEN, DARK_GREEN, (x - 10, bottom, w + 20, 31), 10)
 
-if st.session_state.lives <= 0:
-    finish_game()
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("## 💥 Game Over")
-    st.write(f"Final Score: **{st.session_state.score}**")
-    st.write(f"XP Earned: **{st.session_state.xp}**")
-    st.write("Badges: " + (", ".join(st.session_state.earned_badges) if st.session_state.earned_badges else "No badges yet"))
-    if st.button("🔁 Play Again"):
-        restart()
-        st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
+        pygame.draw.rect(SCREEN, (170, 255, 170), (x + 14, 2, 10, max(0, top - 34)))
+        pygame.draw.rect(SCREEN, (170, 255, 170), (x + 14, bottom + 34, 10, HEIGHT - bottom - 88))
 
-questions = available_questions()
 
-if st.session_state.index >= len(questions):
-    finish_game()
-    if st.session_state.sound:
-        play_sound("level")
-    st.balloons()
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown("## 🏆 Mission Complete!")
-    st.write(f"Final Score: **{st.session_state.score}**")
-    st.write(f"Total XP: **{st.session_state.xp}**")
-    st.markdown("### 🏅 Your Badges")
-    if st.session_state.earned_badges:
-        st.markdown("".join([f'<span class="badge">{b}</span>' for b in st.session_state.earned_badges]), unsafe_allow_html=True)
-    else:
-        st.info("Play again to unlock badges.")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("🔁 Play Again"):
-            restart()
-            st.rerun()
-    with c2:
-        if st.button("🏆 Leaderboard"):
-            st.session_state.started = "leaderboard"
-            st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.stop()
+def draw_items():
+    for it in items:
+        if it["collected"]:
+            continue
 
-q = questions[st.session_state.index]
+        it["spin"] += 0.12
+        x, y = int(it["x"]), int(it["y"])
 
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.markdown(f'<div class="level">{q["mode"]} · {q["level"]}</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="mission">🎙️ <b>Speaking Mission:</b> {q["mission"]}</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="question">{q["q"]}</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="tip">💡 {q["tip"]}</div>', unsafe_allow_html=True)
+        if it["type"] == "coin":
+            pygame.draw.circle(SCREEN, (255, 213, 79), (x, y), 14)
+            pygame.draw.circle(SCREEN, (255, 171, 0), (x, y), 7)
+        else:
+            pygame.draw.circle(SCREEN, (179, 245, 255), (x, y), 16, 4)
+            pygame.draw.circle(SCREEN, (122, 232, 255), (x, y), 9)
 
-if st.session_state.message:
-    cls = "correct" if st.session_state.message_type == "correct" else "wrong"
-    st.markdown(f'<div class="{cls}">{st.session_state.message}</div>', unsafe_allow_html=True)
-    new_badges = check_badges()
-    if new_badges:
-        if st.session_state.sound:
-            play_sound("badge")
-        st.markdown("### 🎉 New Badge Unlocked!")
-        st.markdown("".join([f'<span class="badge">{b}</span>' for b in new_badges]), unsafe_allow_html=True)
-    if st.button("➡️ Next Mission"):
-        st.session_state.index += 1
-        st.session_state.selected_words = []
-        st.session_state.shuffled_words = []
-        st.session_state.message = ""
-        st.session_state.message_type = ""
-        st.rerun()
-else:
-    if q["type"] == "choose":
-        for option in q["options"]:
-            if st.button(option):
-                if option == q["answer"]:
-                    st.session_state.score += 100 + st.session_state.streak * 20
-                    st.session_state.xp += 120 + st.session_state.streak * 15
-                    st.session_state.streak += 1
-                    st.session_state.message = "✅ Correct! Great speaking choice."
-                    st.session_state.message_type = "correct"
-                    if st.session_state.sound:
-                        play_sound("correct")
-                    st.balloons()
-                else:
-                    st.session_state.lives -= 1
-                    st.session_state.streak = 0
-                    st.session_state.xp = max(0, st.session_state.xp - 20)
-                    st.session_state.message = f"❌ Wrong! Correct answer: {q['answer']}"
-                    st.session_state.message_type = "wrong"
-                    if st.session_state.sound:
-                        play_sound("wrong")
-                st.rerun()
 
-    if q["type"] == "order":
-        if not st.session_state.shuffled_words:
-            st.session_state.shuffled_words = random.sample(q["words"], len(q["words"]))
+def draw_bird():
+    x, y = int(bird["x"]), int(bird["y"])
 
-        sentence = " ".join(st.session_state.selected_words) if st.session_state.selected_words else "Tap words below..."
-        st.info("Your sentence: " + sentence)
+    if bird["shield"] > 0:
+        pygame.draw.circle(SCREEN, (125, 235, 255), (x, y), 34 + int(math.sin(frame * 0.18) * 2), 4)
 
-        cols = st.columns(2)
-        for i, word in enumerate(st.session_state.shuffled_words):
-            if i not in [x[0] for x in st.session_state.selected_words]:
-                with cols[i % 2]:
-                    if st.button(word, key=f"word_{i}_{word}"):
-                        st.session_state.selected_words.append((i, word))
-                        st.rerun()
+    pygame.draw.ellipse(SCREEN, YELLOW, (x - 28, y - 21, 52, 42))
 
-        c1, c2 = st.columns(2)
-        with c1:
-            if st.button("✅ Check Sentence"):
-                made = " ".join([w for _, w in st.session_state.selected_words])
-                if made == q["answer"]:
-                    st.session_state.score += 120 + st.session_state.streak * 20
-                    st.session_state.xp += 140 + st.session_state.streak * 15
-                    st.session_state.streak += 1
-                    st.session_state.message = "✅ Correct sentence! Excellent."
-                    st.session_state.message_type = "correct"
-                    if st.session_state.sound:
-                        play_sound("correct")
-                    st.balloons()
-                else:
-                    st.session_state.lives -= 1
-                    st.session_state.streak = 0
-                    st.session_state.xp = max(0, st.session_state.xp - 20)
-                    st.session_state.message = f"❌ Wrong! Correct sentence: {q['answer']}"
-                    st.session_state.message_type = "wrong"
-                    if st.session_state.sound:
-                        play_sound("wrong")
-                st.rerun()
-        with c2:
-            if st.button("🧹 Clear"):
-                st.session_state.selected_words = []
-                st.rerun()
+    wing_y = y + math.sin(frame * 0.55) * 7 - bird["wing"]
+    pygame.draw.ellipse(SCREEN, ORANGE, (x - 31, wing_y - 8, 30, 16))
 
-st.markdown('</div>', unsafe_allow_html=True)
+    pygame.draw.circle(SCREEN, WHITE, (x + 10, y - 8), 8)
+    pygame.draw.circle(SCREEN, BLACK, (x + 12, y - 8), 3)
 
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.markdown("### 📅 Daily Challenge")
-st.markdown(f'<div class="mission">{daily}</div>', unsafe_allow_html=True)
+    pygame.draw.polygon(SCREEN, (255, 112, 67), [(x + 18, y - 2), (x + 38, y + 5), (x + 18, y + 12)])
 
-st.markdown("### 🏅 Badges")
-if st.session_state.earned_badges:
-    st.markdown("".join([f'<span class="badge">{b}</span>' for b in st.session_state.earned_badges]), unsafe_allow_html=True)
-else:
-    st.write("No badge yet. Keep playing!")
-st.markdown('</div>', unsafe_allow_html=True)
+    bird["wing"] *= 0.72
+
+
+def draw_particles():
+    for pt in particles:
+        alpha = max(0, pt["life"] / pt["max"])
+        if pt["kind"] == "coin":
+            color = (255, 213, 79)
+        elif pt["kind"] == "shield":
+            color = (179, 245, 255)
+        elif pt["kind"] == "feather":
+            color = (255, 248, 198)
+        else:
+            color = (255, 140, 80)
+
+        pygame.draw.circle(SCREEN, color, (int(pt["x"]), int(pt["y"])), int(pt["size"] * alpha + 1))
+
+
+def end_game():
+    global state, camera_shake, slow_motion
+    if state != "play":
+        return
+    state = "over"
+    camera_shake = 22
+    slow_motion = 25
+    play(SND_HIT)
+    burst(bird["x"], bird["y"], 45, "spark")
+
+
+def update_game():
+    global frame, score, coins, best, level, slow_motion, camera_shake
+
+    if state != "play":
+        return
+
+    speed_factor = 0.55 if slow_motion > 0 else 1
+
+    frame += 1
+    level = 1 + score // 8
+
+    bird["vy"] += bird["gravity"] * speed_factor
+    bird["y"] += bird["vy"] * speed_factor
+
+    if bird["shield"] > 0:
+        bird["shield"] -= 1
+
+    if slow_motion > 0:
+        slow_motion -= 1
+
+    if len(pipes) == 0 or pipes[-1]["x"] < WIDTH - 185:
+        add_pipe()
+
+    for p in pipes:
+        p["x"] -= p["speed"] * speed_factor
+
+        if p["moving"]:
+            p["top"] = p["base_top"] + math.sin(frame * 0.035 + p["phase"]) * 32
+            p["bottom"] = p["top"] + p["gap"]
+
+        if not p["passed"] and p["x"] + p["w"] < bird["x"]:
+            p["passed"] = True
+            score += 1
+            best = max(best, score)
+
+        close_x = max(p["x"], min(bird["x"], p["x"] + p["w"]))
+        hit_top_y = max(-20, min(bird["y"], p["top"]))
+        hit_bottom_y = max(p["bottom"], min(bird["y"], HEIGHT - 52))
+
+        d_top = math.hypot(bird["x"] - close_x, bird["y"] - hit_top_y)
+        d_bottom = math.hypot(bird["x"] - close_x, bird["y"] - hit_bottom_y)
+
+        if (d_top < bird["r"] or d_bottom < bird["r"]) and bird["shield"] <= 0:
+            end_game()
+
+        if (d_top < bird["r"] or d_bottom < bird["r"]) and bird["shield"] > 0:
+            p["x"] = -200
+            bird["shield"] = 0
+            camera_shake = 12
+            burst(bird["x"], bird["y"], 24, "shield")
+            play(SND_POWER)
+
+    pipes[:] = [p for p in pipes if p["x"] + p["w"] > -80]
+
+    for it in items:
+        it["x"] -= (2.75 + min(2.25, score * 0.035)) * speed_factor
+        if not it["collected"] and math.hypot(bird["x"] - it["x"], bird["y"] - it["y"]) < bird["r"] + it["r"]:
+            it["collected"] = True
+            if it["type"] == "coin":
+                coins += 1
+                score += 1
+                burst(it["x"], it["y"], 18, "coin")
+                play(SND_COIN)
+            else:
+                bird["shield"] = 520
+                burst(it["x"], it["y"], 24, "shield")
+                play(SND_POWER)
+
+    items[:] = [it for it in items if it["x"] > -50 and not it.get("dead", False)]
+
+    for pt in particles:
+        pt["x"] += pt["vx"] * speed_factor
+        pt["y"] += pt["vy"] * speed_factor
+        pt["vy"] += 0.045
+        pt["life"] -= 1
+
+    particles[:] = [pt for pt in particles if pt["life"] > 0]
+
+    if (bird["y"] + bird["r"] > HEIGHT - 90 or bird["y"] - bird["r"] < 0) and bird["shield"] <= 0:
+        end_game()
+
+    if bird["y"] + bird["r"] > HEIGHT - 90 and bird["shield"] > 0:
+        bird["y"] = HEIGHT - 90 - bird["r"]
+        bird["vy"] = -5
+        bird["shield"] = 0
+        camera_shake = 10
+
+
+def draw_hud():
+    draw_rounded_rect(SCREEN, (0, 0, 0), (14, 14, 164, 42), 18)
+    draw_text(f"BEST {best}", FONT_SMALL, WHITE, 28, 27, center=False)
+
+    draw_rounded_rect(SCREEN, (0, 0, 0), (WIDTH - 168, 14, 154, 42), 18)
+    text = FONT_SMALL.render(f"COINS {coins}", True, WHITE)
+    SCREEN.blit(text, (WIDTH - 31 - text.get_width(), 27))
+
+    draw_text(score, FONT_BIG, WHITE, WIDTH // 2, 73)
+    draw_text(f"LEVEL {level}", FONT_SMALL, WHITE, WIDTH // 2, 111)
+
+    if bird["shield"] > 0:
+        draw_rounded_rect(SCREEN, (0, 0, 0), (WIDTH // 2 - 70, 122, 140, 24), 12)
+        pygame.draw.rect(SCREEN, (179, 245, 255), (WIDTH // 2 - 62, 129, int(124 * (bird["shield"] / 520)), 10))
+
+
+def panel(title, subtitle, lines):
+    draw_rounded_rect(SCREEN, (2, 16, 32), (35, 190, WIDTH - 70, 280), 30)
+    pygame.draw.rect(SCREEN, (255, 255, 255), (48, 203, WIDTH - 96, 254), 2)
+
+    draw_text(title, FONT_BIG, WHITE, WIDTH // 2, 260)
+    draw_text(subtitle, FONT_MED, WHITE, WIDTH // 2, 303)
+
+    for i, line in enumerate(lines):
+        draw_text(line, FONT_SMALL, WHITE, WIDTH // 2, 342 + i * 28)
+
+    draw_text("Tap / Click / SPACE to play", FONT_SMALL, (255, 213, 79), WIDTH // 2, 430)
+
+
+def draw_overlays():
+    if state == "menu":
+        panel(
+            "FLAPPY SKY",
+            "Python Pygame Edition",
+            [
+                "Collect coins • Grab shield power-up",
+                "Pipes become faster and moving",
+                "Press M to mute sounds",
+            ],
+        )
+    elif state == "pause":
+        panel("PAUSED", "Press P to continue", [f"Score: {score}", f"Best: {best}", f"Coins: {coins}"])
+    elif state == "over":
+        panel(
+            "GAME OVER",
+            f"Your score: {score}",
+            [f"Best score: {best}", f"Coins collected: {coins}", "Press R or tap to restart"],
+        )
+
+
+running = True
+while running:
+    mouse_clicked = False
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+        if event.type == pygame.KEYDOWN:
+            if event.code == pygame.K_SPACE:
+                flap()
+            elif event.key == pygame.K_p:
+                if state == "play":
+                    state = "pause"
+                elif state == "pause":
+                    state = "play"
+            elif event.key == pygame.K_r:
+                reset_game()
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            flap()
+
+    shake_x = 0
+    shake_y = 0
+    if camera_shake > 0:
+        shake_x = random.uniform(-camera_shake, camera_shake)
+        shake_y = random.uniform(-camera_shake, camera_shake)
+        camera_shake *= 0.84
+
+    SCREEN.fill((0, 0, 0))
+    temp = pygame.Surface((WIDTH, HEIGHT))
+    old_screen = SCREEN
+
+    draw_sky()
+    draw_land()
+    update_game()
+    draw_pipes()
+    draw_items()
+    draw_particles()
+    draw_bird()
+    draw_hud()
+    draw_overlays()
+
+    if state != "play":
+        frame += 1
+
+    pygame.display.flip()
+    CLOCK.tick(FPS)
+
+pygame.quit()
+sys.exit()
